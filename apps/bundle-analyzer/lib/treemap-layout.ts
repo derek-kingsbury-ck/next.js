@@ -35,7 +35,7 @@ export interface LayoutNode extends LayoutNodeInfo {
 
 interface SourceMetadata {
   filtered: boolean
-  totalSize: number
+  compressedSize: number
 }
 
 function precomputeSourceMetadata(
@@ -45,23 +45,19 @@ function precomputeSourceMetadata(
   const sourceCount = analyzeData.sourceCount()
   const metadata: SourceMetadata[] = new Array(sourceCount)
 
-  // Initialize all entries
-  for (let i = 0; i < sourceCount; i++) {
-    metadata[i] = { filtered: true, totalSize: 0 }
-  }
-
-  // Bottom-up pass: compute leaf node data
   for (let i = sourceCount - 1; i >= 0; i--) {
     const children = analyzeData.sourceChildren(i)
-    const ownSize = analyzeData.getSourceOutputSize(i)
+    const ownSize = analyzeData.getSourceSizes(i)
 
     if (children.length === 0) {
-      // Leaf node (file)
-      metadata[i].totalSize = ownSize
-      metadata[i].filtered = filterSource ? !filterSource(i) : false
+      // file
+      metadata[i] = {
+        compressedSize: ownSize.compressedSize,
+        filtered: filterSource ? !filterSource(i) : false,
+      }
     } else {
-      // Directory - initialize with own size
-      metadata[i].totalSize = ownSize
+      // directory
+      metadata[i] = { filtered: true, compressedSize: ownSize.compressedSize }
     }
   }
 
@@ -70,19 +66,19 @@ function precomputeSourceMetadata(
     const children = analyzeData.sourceChildren(idx)
     if (children.length === 0) return // Already processed as leaf
 
-    let totalSize = metadata[idx].totalSize // Start with own size
+    let totalSize = metadata[idx].compressedSize // Start with own size
     let hasVisibleChild = false
 
     for (const childIdx of children) {
       processDirectory(childIdx) // Process child first
       if (!metadata[childIdx].filtered) {
         // Only add size of visible (non-filtered) children
-        totalSize += metadata[childIdx].totalSize
+        totalSize += metadata[childIdx].compressedSize
         hasVisibleChild = true
       }
     }
 
-    metadata[idx].totalSize = totalSize
+    metadata[idx].compressedSize = totalSize
     metadata[idx].filtered = !hasVisibleChild // Directory filtered if no visible children
   }
 
@@ -111,7 +107,6 @@ function computeTreemapLayoutFromAnalyzeInternal(
 
   const isDirectory = source.path.endsWith('/') || !source.path
 
-  // Get children sources
   const childrenIndices = analyzeData.sourceChildren(sourceIndex)
 
   // Fold single-child directories
@@ -134,8 +129,7 @@ function computeTreemapLayoutFromAnalyzeInternal(
     }
   }
 
-  // Use precomputed size
-  const totalSize = metadata[sourceIndex].totalSize
+  const totalSize = metadata[sourceIndex].compressedSize
 
   // If this is a file (no children), create a file node
   if (!isDirectory || childrenIndices.length === 0) {
@@ -150,7 +144,9 @@ function computeTreemapLayoutFromAnalyzeInternal(
     }
   }
 
-  // This is a directory with children
+  const directoryName = foldedPath + source.path || 'All Route Modules'
+
+  // Directory with children
   const titleBarHeight = Math.round(
     Math.max(12, Math.min(24, rect.height * 0.1))
   )
@@ -175,7 +171,7 @@ function computeTreemapLayoutFromAnalyzeInternal(
     }
 
     return {
-      name: foldedPath + source.path,
+      name: directoryName,
       size: totalSize,
       type: 'collapsed-directory',
       rect,
@@ -200,7 +196,7 @@ function computeTreemapLayoutFromAnalyzeInternal(
     }
 
     // Use precomputed size
-    const childSize = metadata[childIndex].totalSize
+    const childSize = metadata[childIndex].compressedSize
 
     childrenData.push({
       index: childIndex,
@@ -210,7 +206,7 @@ function computeTreemapLayoutFromAnalyzeInternal(
 
   if (childrenData.length === 0) {
     return {
-      name: foldedPath + source.path,
+      name: directoryName,
       size: totalSize,
       type: 'directory',
       rect,
@@ -240,7 +236,7 @@ function computeTreemapLayoutFromAnalyzeInternal(
   )
 
   return {
-    name: foldedPath + source.path,
+    name: directoryName,
     size: totalSize,
     type: 'directory',
     rect,

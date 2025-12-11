@@ -7,7 +7,8 @@ use serde_json::json;
 use turbo_rcstr::rcstr;
 use turbo_tasks::{ResolvedVc, Vc};
 use turbo_tasks_fs::{
-    File, FileContent, FileSystem, FileSystemPath, VirtualFileSystem, rope::Rope,
+    File, FileContent, FileLine, FileLinesContent, FileSystem, FileSystemPath, VirtualFileSystem,
+    rope::Rope,
 };
 use turbo_tasks_testing::{Registration, register, run_once};
 use turbopack_analyze::split_chunk::{ChunkPart, ChunkPartRange, split_output_asset_into_parts};
@@ -66,6 +67,25 @@ async fn split_chunk() {
                     source: rcstr!("source1.js"),
                     real_size: 15,
                     unaccounted_size: 51,
+                    lines: FileLinesContent::Lines(vec![
+                        FileLine {
+                            bytes_offset: 0,
+                            content: "".to_string(),
+                        },
+                        FileLine {
+                            bytes_offset: 1,
+                            content: "".to_string(),
+                        },
+                        FileLine {
+                            bytes_offset: 2,
+                            content: "123456789012345".to_string(),
+                        },
+                        FileLine {
+                            bytes_offset: 3,
+                            content: "This is the end of the file.".to_string(),
+                        }
+                    ])
+                    .resolved_cell(),
                     ranges: vec![
                         ChunkPartRange {
                             line: 2,
@@ -83,6 +103,17 @@ async fn split_chunk() {
                     source: rcstr!("source2.js"),
                     real_size: 31,
                     unaccounted_size: 46,
+                    lines: FileLinesContent::Lines(vec![
+                        FileLine {
+                            bytes_offset: 0,
+                            content: "0123456789012345678901234567890123456789".to_string(),
+                        },
+                        FileLine {
+                            bytes_offset: 1,
+                            content: "".to_string(),
+                        },
+                    ])
+                    .resolved_cell(),
                     ranges: vec![ChunkPartRange {
                         line: 4,
                         start_column: 0,
@@ -91,6 +122,9 @@ async fn split_chunk() {
                 },
             ]
         );
+
+        assert_eq!(parts[0].get_compressed_size().await.unwrap(), 64);
+        assert_eq!(parts[1].get_compressed_size().await.unwrap(), 60);
 
         println!("{:#?}", parts);
         anyhow::Ok(())

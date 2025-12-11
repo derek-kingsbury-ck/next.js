@@ -18,6 +18,7 @@ export interface AnalyzeChunkPart {
   source_index: number
   output_file_index: number
   size: number
+  compressed_size: number
 }
 
 export interface AnalyzeOutputFile {
@@ -336,29 +337,31 @@ export class AnalyzeData {
     return parentPath + source.path
   }
 
-  getSourceOutputSize(index: SourceIndex): number {
+  getSourceSizes(index: SourceIndex): {
+    size: number
+    compressedSize: number
+  } {
     const chunkParts = this.sourceChunkParts(index)
-    let totalSize = 0
+    let size = 0
+    let compressedSize = 0
     for (const chunkPartIndex of chunkParts) {
       const chunkPart = this.chunkPart(chunkPartIndex)
       if (chunkPart) {
-        totalSize += chunkPart.size
+        size += chunkPart.size
+        compressedSize += chunkPart.compressed_size
       }
     }
-    return totalSize
+    return { size, compressedSize }
   }
 
-  getSourceRecursiveSize(index: SourceIndex): number {
-    let totalSize = this.getSourceOutputSize(index)
-    const children = this.sourceChildren(index)
-    for (const childIndex of children) {
-      totalSize += this.getSourceRecursiveSize(childIndex)
-    }
-    return totalSize
-  }
+  getSourceFilteredRecursiveModuleCount(
+    index: SourceIndex,
+    filterSource: (sourceIndex: SourceIndex) => boolean
+  ): number {
+    const selfVisible = filterSource(index)
+    const selfCount =
+      selfVisible && this.sourceChunkParts(index).length > 0 ? 1 : 0
 
-  getSourceRecursiveModuleCount(index: SourceIndex): number {
-    const selfCount = this.sourceChunkParts(index).length > 0 ? 1 : 0
     const children = this.sourceChildren(index)
     if (children.length === 0) {
       return selfCount
@@ -366,7 +369,10 @@ export class AnalyzeData {
 
     let totalCount = selfCount
     for (const childIndex of children) {
-      totalCount += this.getSourceRecursiveModuleCount(childIndex)
+      totalCount += this.getSourceFilteredRecursiveModuleCount(
+        childIndex,
+        filterSource
+      )
     }
     return totalCount
   }
@@ -386,6 +392,43 @@ export class AnalyzeData {
     }
 
     return Array.from(uniqueChunks).sort()
+  }
+
+  getSourceRecursiveSizes(
+    index: SourceIndex,
+    filterSource: (sourceIndex: SourceIndex) => boolean
+  ): { size: number; compressedSize: number } {
+    if (!filterSource(index)) {
+      return { size: 0, compressedSize: 0 }
+    }
+
+    const children = this.sourceChildren(index)
+
+    let size = 0
+    let compressedSize = 0
+
+    if (children.length === 0) {
+      const { size: ownUncompressedSize, compressedSize: ownCompressedSize } =
+        this.getSourceSizes(index)
+      size += ownUncompressedSize
+      compressedSize += ownCompressedSize
+    } else {
+      for (const childIndex of children) {
+        if (filterSource(childIndex)) {
+          const {
+            size: childUncompressedSize,
+            compressedSize: childCompressedSize,
+          } = this.getSourceRecursiveSizes(childIndex, filterSource)
+          size += childUncompressedSize
+          compressedSize += childCompressedSize
+        }
+      }
+    }
+
+    return {
+      size,
+      compressedSize,
+    }
   }
 
   getSourceFlags(index: SourceIndex): {

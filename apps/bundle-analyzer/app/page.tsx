@@ -100,7 +100,7 @@ export default function Home() {
   }, [modulesData, analyzeData])
 
   const filterSource = useMemo(() => {
-    if (!analyzeData) return undefined
+    if (!analyzeData) return () => true
 
     return (sourceIndex: number) => {
       const flags = analyzeData.getSourceFlags(sourceIndex)
@@ -252,6 +252,7 @@ export default function Home() {
               selectedSourceIndex={selectedSourceIndex}
               moduleDepthMap={moduleDepthMap}
               environmentFilter={environmentFilter}
+              filterSource={filterSource}
             />
           </>
         ) : null}
@@ -266,7 +267,7 @@ export default function Home() {
                   {hoveredNodeInfo.name}
                 </span>
                 <span className="ml-2 text-muted-foreground">
-                  {formatBytes(hoveredNodeInfo.size)}
+                  {`${formatBytes(hoveredNodeInfo.size)} gzip`}
                 </span>
                 {(hoveredNodeInfo.server || hoveredNodeInfo.client) && (
                   <span className="ml-2 inline-flex gap-1">

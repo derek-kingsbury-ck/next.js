@@ -1,6 +1,13 @@
 'use client'
 
 import type React from 'react'
+import { CircleHelp } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip'
 import { ImportChain } from '@/components/import-chain'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AnalyzeData, ModulesData } from '@/lib/analyze-data'
@@ -15,6 +22,7 @@ interface SidebarProps {
   selectedSourceIndex: number | null
   moduleDepthMap: Map<number, number>
   environmentFilter: 'client' | 'server'
+  filterSource?: (sourceIndex: number) => boolean
   isLoading?: boolean
 }
 
@@ -34,9 +42,12 @@ export function Sidebar({
   selectedSourceIndex,
   moduleDepthMap,
   environmentFilter,
+  filterSource,
   isLoading = false,
 }: SidebarProps) {
-  if (isLoading) {
+  filterSource = filterSource ?? (() => true)
+
+  if (isLoading || !analyzeData) {
     return (
       <div
         className="flex-none bg-muted border-l border-border overflow-y-auto"
@@ -56,10 +67,40 @@ export function Sidebar({
     )
   }
 
-  if (!analyzeData) {
-    return null
-  }
+  return (
+    <div
+      className="flex-none bg-muted border-l border-border overflow-y-auto"
+      style={{ width: `${sidebarWidth}%` }}
+    >
+      {selectedSourceIndex != null ? (
+        <SidebarModule
+          analyzeData={analyzeData}
+          modulesData={modulesData}
+          selectedSourceIndex={selectedSourceIndex}
+          filterSource={filterSource}
+          moduleDepthMap={moduleDepthMap}
+          environmentFilter={environmentFilter}
+        />
+      ) : null}
+    </div>
+  )
+}
 
+function SidebarModule({
+  analyzeData,
+  modulesData,
+  selectedSourceIndex,
+  filterSource,
+  moduleDepthMap,
+  environmentFilter,
+}: {
+  analyzeData: AnalyzeData
+  modulesData: ModulesData | null
+  selectedSourceIndex: number
+  moduleDepthMap: Map<number, number>
+  environmentFilter: 'client' | 'server'
+  filterSource: (sourceIndex: number) => boolean
+}) {
   const specialModuleType = getSpecialModuleType(
     analyzeData,
     selectedSourceIndex
@@ -76,101 +117,122 @@ export function Sidebar({
 
   const childModuleCount =
     hasChildModules && selectedSourceIndex != null
-      ? analyzeData.getSourceRecursiveModuleCount(selectedSourceIndex)
+      ? analyzeData.getSourceFilteredRecursiveModuleCount(
+          selectedSourceIndex,
+          filterSource
+        )
       : null
 
+  const { size, compressedSize } =
+    selectedSourceIndex != null
+      ? analyzeData.getSourceRecursiveSizes(selectedSourceIndex, filterSource)
+      : hasChildModules
+        ? analyzeData.getSourceRecursiveSizes(selectedSourceIndex, filterSource)
+        : analyzeData.getSourceSizes(selectedSourceIndex)
+
+  const chunks =
+    selectedSourceIndex != null
+      ? analyzeData.sourceChunks(selectedSourceIndex)
+      : []
+
   return (
-    <div
-      className="flex-none bg-muted border-l border-border overflow-y-auto"
-      style={{ width: `${sidebarWidth}%` }}
-    >
-      <div className="flex-1 p-3 space-y-8 overflow-y-auto">
-        <div className="space-y-2">
-          <h2 className="text-s font-semibold mb-1 text-foreground truncate">
-            {selectedSource
-              ? selectedSource.path || 'All Route Modules'
-              : 'Unknown Source'}
-          </h2>
-          {selectedSourceIndex != null &&
-          analyzeData.source(selectedSourceIndex) ? (
+    <div className="flex-1 p-3 space-y-8 overflow-y-auto">
+      <div className="space-y-2">
+        <h2 className="text-s font-semibold mb-1 text-foreground truncate">
+          {selectedSource?.path || 'All Route Modules'}
+        </h2>
+        {selectedSourceIndex != null &&
+        analyzeData.source(selectedSourceIndex) ? (
+          <div className="text-xs">
             <div>
-              <div className="text-xs">
-                <span>
-                  {hasChildModules
-                    ? formatBytes(
-                        analyzeData.getSourceRecursiveSize(selectedSourceIndex)
-                      )
-                    : formatBytes(
-                        analyzeData.getSourceOutputSize(selectedSourceIndex)
-                      )}
-                </span>{' '}
-                <span className="text-muted-foreground">bundled</span>
-              </div>
-              {hasChildModules && childModuleCount != null ? (
-                <div className="text-xs">
-                  <span>{childModuleCount} </span>
-                  <span className="text-muted-foreground">
-                    {childModuleCount === 1 ? 'module' : 'modules'}
-                  </span>
-                </div>
-              ) : null}
+              <span>{formatBytes(size)}</span>{' '}
+              <span className="text-muted-foreground">bundled</span>
             </div>
-          ) : null}
-        </div>
-
-        {selectedSourceIndex != null &&
-          analyzeData.source(selectedSourceIndex) &&
-          (specialModuleType === SpecialModule.POLYFILL_MODULE ||
-            specialModuleType === SpecialModule.POLYFILL_NOMODULE) && (
-            <dl>
-              <div className="flex items-center gap-2">
-                <dt className="inline-flex items-center">
-                  <Badge variant="polyfill">Polyfill</Badge>
-                </dt>
-                <dd className="text-xs text-muted-foreground">
-                  Next.js built-in polyfills
-                </dd>
-              </div>
-            </dl>
-          )}
-
-        {selectedSourceIndex != null &&
-          analyzeData.source(selectedSourceIndex) &&
-          !hasChildModules && (
             <>
-              {modulesData && (
-                <ImportChain
-                  key={selectedSourceIndex}
-                  startFileId={selectedSourceIndex}
-                  analyzeData={analyzeData}
-                  modulesData={modulesData}
-                  depthMap={moduleDepthMap}
-                  environmentFilter={environmentFilter}
-                />
-              )}
-              {(() => {
-                const chunks = analyzeData.sourceChunks(selectedSourceIndex)
-                if (chunks.length > 0) {
-                  return (
-                    <div className="mt-2">
-                      <p className="text-xs font-semibold text-foreground">
-                        Output Chunks
-                      </p>
-                      <ul className="text-xs text-muted-foreground font-mono mt-1 space-y-1">
-                        {chunks.map((chunk) => (
-                          <li key={chunk} className="break-all">
-                            {chunk}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                }
-                return null
-              })()}
+              <div>
+                <span className="text-muted-foreground">About </span>
+                <span>{formatBytes(compressedSize)}</span>
+                <span className="text-muted-foreground ml-1">compressed</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="ml-1 inline-flex align-middle cursor-help"
+                        aria-label="Estimate derived from the module's proportion of the compressed file"
+                      >
+                        <CircleHelp
+                          size={14}
+                          className="text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="center">
+                      Estimated compressed size. Modules are compressed in
+                      isolation which may differ from their size in the final
+                      chunk.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </>
-          )}
+            {hasChildModules && childModuleCount != null ? (
+              <div>
+                <span>{childModuleCount} </span>
+                <span className="text-muted-foreground">
+                  {childModuleCount === 1 ? 'module' : 'modules'}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+
+      {selectedSourceIndex != null &&
+        analyzeData.source(selectedSourceIndex) &&
+        (specialModuleType === SpecialModule.POLYFILL_MODULE ||
+          specialModuleType === SpecialModule.POLYFILL_NOMODULE) && (
+          <dl>
+            <div className="flex items-center gap-2">
+              <dt className="inline-flex items-center">
+                <Badge variant="polyfill">Polyfill</Badge>
+              </dt>
+              <dd className="text-xs text-muted-foreground">
+                Next.js built-in polyfills
+              </dd>
+            </div>
+          </dl>
+        )}
+
+      {selectedSourceIndex != null &&
+        analyzeData.source(selectedSourceIndex) &&
+        !hasChildModules && (
+          <>
+            {modulesData && (
+              <ImportChain
+                startFileId={selectedSourceIndex}
+                analyzeData={analyzeData}
+                modulesData={modulesData}
+                depthMap={moduleDepthMap}
+                environmentFilter={environmentFilter}
+              />
+            )}
+            {chunks.length > 0 ? (
+              <div className="mt-2">
+                <p className="text-xs font-semibold text-foreground">
+                  Output Chunks
+                </p>
+                <ul className="text-xs text-muted-foreground font-mono mt-1 space-y-1">
+                  {chunks.map((chunk) => (
+                    <li key={chunk} className="break-all">
+                      {chunk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        )}
     </div>
   )
 }

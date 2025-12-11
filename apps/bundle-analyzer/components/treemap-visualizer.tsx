@@ -332,7 +332,7 @@ function drawTreemap(
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
 
     ctx.strokeStyle = colors.border
-    ctx.lineWidth = 1
+    ctx.lineWidth = 1.5
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
 
     if (rect.width > 60 && rect.height > 30) {
@@ -406,7 +406,7 @@ function drawTreemap(
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
 
     ctx.strokeStyle = colors.dirBorder
-    ctx.lineWidth = 1
+    ctx.lineWidth = 1.5
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
 
     if (titleBarHeight) {
@@ -427,16 +427,40 @@ function drawTreemap(
       ctx.stroke()
 
       const titleFontSize = Math.max(10, titleBarHeight * 0.5)
-      ctx.fillStyle = colors.text
-      ctx.font = `600 ${titleFontSize}px sans-serif`
-      ctx.textAlign = 'left'
+      const sizeFontSize = Math.max(9, titleFontSize - 2)
+      const sizeText = formatBytes(node.size)
+      const centerY = rect.y + titleBarHeight / 2
+      const gap = 6
+
       ctx.textBaseline = 'middle'
-      ctx.fillText(
-        name,
-        rect.x + 8,
-        rect.y + titleBarHeight / 2,
-        rect.width - 16
-      )
+
+      // Measure size text first to reserve space
+      ctx.font = `${sizeFontSize}px sans-serif`
+      const sizeWidth = ctx.measureText(sizeText).width
+
+      const nameX = rect.x + 8
+      const availableNameWidth = Math.max(0, rect.width - 16 - sizeWidth - gap)
+      let displayName = name
+      ctx.font = `600 ${titleFontSize}px sans-serif`
+      while (
+        displayName.length > 0 &&
+        ctx.measureText(displayName).width > availableNameWidth
+      ) {
+        displayName = displayName.slice(0, -1)
+      }
+      if (displayName !== name) {
+        displayName = `${displayName}...`
+      }
+
+      ctx.fillStyle = colors.text
+      ctx.textAlign = 'left'
+      ctx.fillText(displayName, nameX, centerY)
+
+      const nameWidth = ctx.measureText(displayName).width
+      const sizeX = nameX + nameWidth + gap
+      ctx.font = `${sizeFontSize}px sans-serif`
+      ctx.fillStyle = colors.textMuted
+      ctx.fillText(sizeText, sizeX, centerY)
     }
 
     ctx.globalAlpha = 1.0
@@ -453,7 +477,7 @@ function drawTreemap(
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
 
     ctx.strokeStyle = colors.dirBorder
-    ctx.lineWidth = 1
+    ctx.lineWidth = 1.5
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
 
     if (titleBarHeight && rect.height > 20) {
@@ -474,16 +498,39 @@ function drawTreemap(
       ctx.stroke()
 
       const titleFontSize = Math.max(10, titleBarHeight * 0.5)
-      ctx.fillStyle = colors.text
-      ctx.font = `600 ${titleFontSize}px sans-serif`
-      ctx.textAlign = 'left'
+      const sizeFontSize = Math.max(9, titleFontSize - 2)
+      const sizeText = formatBytes(node.size)
+      const centerY = rect.y + titleBarHeight / 2
+      const gap = 6
+
       ctx.textBaseline = 'middle'
-      ctx.fillText(
-        name,
-        rect.x + 8,
-        rect.y + titleBarHeight / 2,
-        rect.width - 16
-      )
+
+      ctx.font = `${sizeFontSize}px sans-serif`
+      const sizeWidth = ctx.measureText(sizeText).width
+
+      const nameX = rect.x + 8
+      const availableNameWidth = Math.max(0, rect.width - 16 - sizeWidth - gap)
+      let displayName = name
+      ctx.font = `600 ${titleFontSize}px sans-serif`
+      while (
+        displayName.length > 0 &&
+        ctx.measureText(displayName).width > availableNameWidth
+      ) {
+        displayName = displayName.slice(0, -1)
+      }
+      if (displayName !== name) {
+        displayName = `${displayName}...`
+      }
+
+      ctx.fillStyle = colors.text
+      ctx.textAlign = 'left'
+      ctx.fillText(displayName, nameX, centerY)
+
+      const nameWidth = ctx.measureText(displayName).width
+      const sizeX = nameX + nameWidth + gap
+      ctx.font = `${sizeFontSize}px sans-serif`
+      ctx.fillStyle = colors.textMuted
+      ctx.fillText(sizeText, sizeX, centerY)
     }
 
     ctx.globalAlpha = 1.0
@@ -917,16 +964,16 @@ function getThemeColors() {
   return {
     text: dark ? '#ffffff' : '#000000',
     textMuted: dark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
-    border: dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(128, 128, 128, 0.2)',
-    dirBg: dark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(128, 128, 128, 0.1)',
-    dirBorder: dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(128, 128, 128, 0.3)',
-    dirTitleBg: dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(128, 128, 128, 0.1)',
+    border: dark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(180, 180, 180, 0.5)',
+    dirBg: dark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(230, 230, 230, 0.1)',
+    dirBorder: dark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(180, 180, 180, 0.6)',
+    dirTitleBg: dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(230, 230, 230, 0.1)',
     dirTitleBorder: dark
-      ? 'rgba(255, 255, 255, 0.15)'
-      : 'rgba(128, 128, 128, 0.2)',
+      ? 'rgba(255, 255, 255, 0.4)'
+      : 'rgba(180, 180, 180, 0.5)',
     collapsedBg: dark
       ? 'rgba(128, 128, 128, 0.15)'
-      : 'rgba(128, 128, 128, 0.2)',
+      : 'rgba(230, 230, 230, 0.2)',
     collapsedText: dark
       ? 'rgba(255, 255, 255, 0.5)'
       : 'rgba(128, 128, 128, 0.6)',
