@@ -223,6 +223,7 @@ module.exports = ({ dev, turbo, bundleType, experimental }) => {
     },
     module: {
       rules: [
+        { test: /\.m?js$/, loader: `source-map-loader`, enforce: `pre` },
         {
           include: /[\\/]react-server\.node/,
           layer: 'react-server',
