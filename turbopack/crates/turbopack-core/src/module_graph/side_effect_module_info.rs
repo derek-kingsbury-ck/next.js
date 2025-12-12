@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rustc_hash::{FxHashMap, FxHashSet};
-use turbo_tasks::{ResolvedVc, TryJoinIterExt, Vc};
+use turbo_tasks::{ResolvedVc, TryJoinIterExt, ValueToString, Vc};
 
 use crate::{
     module::{Module, ModuleSideEffects},
@@ -33,6 +33,15 @@ pub async fn compute_side_effect_free_module_info(
     for graph in graphs.iter_graphs() {
         result = compute_side_effect_free_module_info_single(graph, result);
     }
+    eprintln!(
+        "Modules with no side effects: {:#?}",
+        result
+            .await?
+            .iter()
+            .map(|m| m.ident().to_string())
+            .try_join()
+            .await?
+    );
     Ok(result)
 }
 
